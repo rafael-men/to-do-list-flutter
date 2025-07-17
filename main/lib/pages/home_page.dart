@@ -16,6 +16,7 @@ class _MyHomePageState extends State<HomePage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text('Lista de Tarefas'),
+        centerTitle: true,
       ),
       body: ListView(
         children: [
