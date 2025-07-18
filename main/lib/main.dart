@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:main/pages/home_page.dart';
+import 'package:main/services/service_locator.dart';
 
 void main() {
+  setupGetIt();
   runApp(const MyApp());
 }
 

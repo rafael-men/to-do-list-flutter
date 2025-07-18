@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:main/models/task.dart';
+import 'package:main/services/service_locator.dart';
+import 'package:main/utils/task_list_controller.dart';
 
 class ListItem extends StatefulWidget {
   const ListItem({super.key, required this.task});
@@ -13,6 +15,7 @@ class ListItem extends StatefulWidget {
 class _ListItemState extends State<ListItem> {
   late TextEditingController taskController;
   late TextEditingController descriptionController;
+  final controller = getIt<TaskListController>();
   
   @override
   void initState() {  
@@ -62,19 +65,34 @@ class _ListItemState extends State<ListItem> {
     );
   }
   
-  void onToggled(bool? value) {
-    print('Checkbox clicado: $value');
+ void onToggled(bool? value) {
+    if (value != null) {
+      controller.update(
+        widget.task.id,
+        widget.task.taskName,
+        taskDetails: widget.task.taskDetails,
+        completed: value,
+      );
+    }
   }
-  
+
   void onDeleted() {
-    print('Tarefa Excluída');
+    controller.removeTask(widget.task.id);
   }
 
   void onDescriptionChanged(String description) {
-    print('Descrição alterada: $description');
+    controller.update(
+      widget.task.id,
+      widget.task.taskName,
+      taskDetails: description,
+    );
   }
 
   void onTaskNameChanged(String taskName) {
-    print('Nome Alterado: $taskName' );
+    controller.update(
+      widget.task.id,
+      taskName,
+      taskDetails: widget.task.taskDetails,
+    );
   }
 }
