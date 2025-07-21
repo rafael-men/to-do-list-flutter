@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:main/models/task.dart';
+import 'package:main/services/service_locator.dart';
 import 'package:main/utils/task_list_controller.dart';
 import 'package:main/widget/page_widget.dart';
 
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
+  
   @override
   State<HomePage> createState() => _MyHomePageState();
 }
 
-
 class _MyHomePageState extends State<HomePage> {
   final _titleController = TextEditingController();
   final _detailsController = TextEditingController();
-  final _taskController = TaskListController();
+  final _taskController = getIt<TaskListController>();
 
+  @override
+  void initState() {
+    super.initState();
+  }
 
-    void _showAddTaskDialog() {
+  void _showAddTaskDialog() {
+    
     showDialog(
       context: context,
       builder: (context) {
@@ -46,21 +51,41 @@ class _MyHomePageState extends State<HomePage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(context);
+              },
               child: Text('Cancelar'),
             ),
             ElevatedButton(
               onPressed: () {
+                
                 if (_titleController.text.isNotEmpty) {
-                  _taskController.addTask(
-                    Task.create(
-                      _titleController.text,
-                      _detailsController.text,
-                    ),
+   
+                  
+                  final newTask = Task.create(
+                    _titleController.text,
+                    _detailsController.text,
                   );
+                  
+             
+                  
+                  _taskController.addTask(newTask);
+                 
+                  
                   _titleController.clear();
                   _detailsController.clear();
+              
                   Navigator.pop(context);
+                  
+       
+                } else {
+             
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Por favor, digite o título da tarefa'),
+                      backgroundColor: Colors.red[400],
+                    ),
+                  );
                 }
               },
               child: Text('Adicionar'),
@@ -71,21 +96,64 @@ class _MyHomePageState extends State<HomePage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
+
+    
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Theme.of(context).colorScheme.tertiaryFixed,
         title: Text('Lista de Tarefas'),
         centerTitle: true,
+        actions: [
+          // BOTÃO DE DEBUG TEMPORÁRIO
+          IconButton(
+            icon: Icon(Icons.bug_report),
+            tooltip: 'Teste Debug',
+            onPressed: () {
+       
+              
+              final testTask = Task.create(
+                "Teste Debug ${DateTime.now().millisecond}",
+                "Tarefa criada pelo botão de debug"
+              );
+              
+        
+              _taskController.addTask(testTask);
+              
+       
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Tarefa de teste adicionada!'),
+                  backgroundColor: Colors.green[400],
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: ListView(
         children: [
           PageWidget(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(onPressed: _showAddTaskDialog, tooltip: 'Adicionar Tarefa',child: Icon(Icons.add),),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+
+          _showAddTaskDialog();
+        },
+        tooltip: 'Adicionar Tarefa',
+        child: Icon(Icons.add),
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+
+    _titleController.dispose();
+    _detailsController.dispose();
+    super.dispose();
   }
 }
