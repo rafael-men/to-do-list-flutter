@@ -5,17 +5,26 @@ class Task {
   final String taskName;
   final String taskDetails;
   final bool completed;
+  final String? seriesId; 
 
   Task({
     required this.id,
     required this.taskName,
     required this.taskDetails,
     required this.completed,
+    this.seriesId,
   });
 
-  factory Task.create(String task, String details) {
+
+  factory Task.create(String task, String details, {String? seriesId}) {
     final uuid = Uuid().v4();
-    return Task(id: uuid, taskName: task, taskDetails: details, completed: false);
+    return Task(
+      id: uuid,
+      taskName: task,
+      taskDetails: details,
+      completed: false,
+      seriesId: seriesId,
+    );
   }
 
   Map<String, dynamic> toMap() {
@@ -24,9 +33,9 @@ class Task {
       'taskName': taskName,
       'taskDetails': taskDetails,
       'completed': completed ? 1 : 0,
+      'seriesId': seriesId,
     };
   }
-
 
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
@@ -34,6 +43,7 @@ class Task {
       taskName: map['taskName'],
       taskDetails: map['taskDetails'],
       completed: map['completed'] == 1,
+      seriesId: map['seriesId'],
     );
   }
 
@@ -41,12 +51,14 @@ class Task {
     String? taskName,
     String? taskDetails,
     bool? completed,
+    String? seriesId,
   }) {
     return Task(
       id: id,
       taskName: taskName ?? this.taskName,
       taskDetails: taskDetails ?? this.taskDetails,
       completed: completed ?? this.completed,
+      seriesId: seriesId ?? this.seriesId,
     );
   }
 }

@@ -1,321 +1,126 @@
-import 'package:main/models/task.dart';
-import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:flutter/foundation.dart';
-
-
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart' 
-    if (dart.library.io) 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:main/models/task.dart';
+import 'package:main/models/task_series.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sembast/sembast.dart';
+import 'package:sembast_web/sembast_web.dart';
+import 'package:sembast/sembast_io.dart';
+import 'package:path/path.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
-  
-  DatabaseHelper._init();
-  
   static Database? _database;
-  static bool _isWebFallback = false;
-  static Map<String, dynamic> _webStorage = {};
-  
+  static final _store = intMapStoreFactory.store('tasks');
+  static final _seriesStore = stringMapStoreFactory.store('series');
+
+
+  DatabaseHelper._init();
+
   Future<Database> get database async {
     if (_database != null) return _database!;
-    
-    try {
-      _database = await _initDB('tasks.db');
-      return _database!;
-    } catch (e) {
-      print('Erro ao inicializar SQLite: $e');
-      print('Usando armazenamento em memória como fallback');
-      _isWebFallback = true;
-      _initWebFallback();
-      // Retorna um database mock que nunca será usado
-      throw Exception('SQLite indisponível, usando fallback');
-    }
+    _database = await _initDB('tasks.db');
+    return _database!;
   }
-  
-  void _initWebFallback() {
-    // Inicializa o armazenamento em memória se não existir
-    if (_webStorage['tasks'] == null) {
-      _webStorage['tasks'] = <Map<String, dynamic>>[];
-    }
-  }
-  
+
   Future<Database> _initDB(String fileName) async {
     if (kIsWeb) {
-      try {
-        // Tenta configurar o SQLite para web
-        databaseFactory = databaseFactoryFfiWeb;
-        
-        return await openDatabase(
-          fileName,
-          version: 1,
-          onCreate: _createDB,
-        );
-      } catch (e) {
-        print('Falha ao configurar SQLite web: $e');
-        rethrow;
-      }
+
+      final factory = databaseFactoryWeb;
+      return await factory.openDatabase(fileName);
     } else {
-      // Para plataformas nativas
-      final dbPath = await getDatabasesPath();
-      final path = join(dbPath, fileName);
-      
-      return await openDatabase(
-        path,
-        version: 1,
-        onCreate: _createDB,
-      );
+   
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbPath = join(appDocDir.path, fileName);
+      final factory = databaseFactoryIo;
+      return await factory.openDatabase(dbPath);
     }
   }
-  
-  Future _createDB(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE tasks (
-        id TEXT PRIMARY KEY,
-        taskName TEXT NOT NULL,
-        taskDetails TEXT,
-        completed INTEGER NOT NULL DEFAULT 0
-      )
-    ''');
-  }
-  
-  Future close() async {
-    if (!_isWebFallback && _database != null) {
-      final db = _database!;
-      await db.close();
-      _database = null;
-    }
-  }
-  
+
   Future<int> insertTask(Task task) async {
-    try {
-      if (_isWebFallback) {
-        return _insertTaskWeb(task);
-      }
-      
-      final db = await database;
-      return await db.insert('tasks', task.toMap());
-    } catch (e) {
-      print('Erro ao inserir tarefa, usando fallback: $e');
-      _isWebFallback = true;
-      _initWebFallback();
-      return _insertTaskWeb(task);
-    }
+    final db = await database;
+    return await _store.add(db, task.toMap());
   }
-  
-  int _insertTaskWeb(Task task) {
-    _initWebFallback();
-    final tasks = List<Map<String, dynamic>>.from(_webStorage['tasks']);
-    
-    // Verifica se já existe
-    if (tasks.any((t) => t['id'] == task.id)) {
-      throw Exception('Tarefa com ID ${task.id} já existe');
-    }
-    
-    tasks.add(task.toMap());
-    _webStorage['tasks'] = tasks;
-    print('Tarefa inserida no fallback: ${task.taskName}');
-    return 1; // Simula sucesso
-  }
-  
+
   Future<List<Task>> getTasks() async {
-    try {
-      if (_isWebFallback) {
-        return _getTasksWeb();
-      }
-      
-      final db = await database;
-      final result = await db.query('tasks', orderBy: 'taskName ASC');
-      return result.map((map) => Task.fromMap(map)).toList();
-    } catch (e) {
-      print('Erro ao carregar tarefas, usando fallback: $e');
-      _isWebFallback = true;
-      _initWebFallback();
-      return _getTasksWeb();
-    }
+    final db = await database;
+    final snapshot = await _store.find(db, finder: Finder(sortOrders: [SortOrder('taskName')]));
+    return snapshot.map((record) => Task.fromMap(record.value)).toList();
   }
-  
-  List<Task> _getTasksWeb() {
-    _initWebFallback();
-    final tasks = List<Map<String, dynamic>>.from(_webStorage['tasks']);
-    return tasks.map((map) => Task.fromMap(map)).toList();
-  }
-  
+
   Future<int> updateTask(Task task) async {
-    try {
-      if (_isWebFallback) {
-        return _updateTaskWeb(task);
-      }
-      
-      final db = await database;
-      return await db.update(
-        'tasks',
-        task.toMap(),
-        where: 'id = ?',
-        whereArgs: [task.id],
-      );
-    } catch (e) {
-      print('Erro ao atualizar tarefa, usando fallback: $e');
-      _isWebFallback = true;
-      _initWebFallback();
-      return _updateTaskWeb(task);
-    }
+    final db = await database;
+    final finder = Finder(filter: Filter.equals('id', task.id));
+    return await _store.update(db, task.toMap(), finder: finder);
   }
-  
-  int _updateTaskWeb(Task task) {
-    _initWebFallback();
-    final tasks = List<Map<String, dynamic>>.from(_webStorage['tasks']);
-    final index = tasks.indexWhere((t) => t['id'] == task.id);
-    
-    if (index == -1) {
-      throw Exception('Tarefa não encontrada para atualização');
-    }
-    
-    tasks[index] = task.toMap();
-    _webStorage['tasks'] = tasks;
-    print('Tarefa atualizada no fallback: ${task.taskName}');
-    return 1;
-  }
-  
+
   Future<int> deleteTask(String id) async {
-    try {
-      if (_isWebFallback) {
-        return _deleteTaskWeb(id);
-      }
-      
-      final db = await database;
-      return await db.delete(
-        'tasks',
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-    } catch (e) {
-      print('Erro ao deletar tarefa, usando fallback: $e');
-      _isWebFallback = true;
-      _initWebFallback();
-      return _deleteTaskWeb(id);
-    }
+    final db = await database;
+    final finder = Finder(filter: Filter.equals('id', id));
+    return await _store.delete(db, finder: finder);
   }
-  
-  int _deleteTaskWeb(String id) {
-    _initWebFallback();
-    final tasks = List<Map<String, dynamic>>.from(_webStorage['tasks']);
-    final initialLength = tasks.length;
-    
-    tasks.removeWhere((t) => t['id'] == id);
-    _webStorage['tasks'] = tasks;
-    
-    final deletedCount = initialLength - tasks.length;
-    print('Tarefa deletada no fallback: $id');
-    return deletedCount;
-  }
-  
+
   Future<int> deleteAllTasks() async {
-    try {
-      if (_isWebFallback) {
-        return _deleteAllTasksWeb();
-      }
-      
-      final db = await database;
-      return await db.delete('tasks');
-    } catch (e) {
-      print('Erro ao limpar tarefas, usando fallback: $e');
-      _isWebFallback = true;
-      _initWebFallback();
-      return _deleteAllTasksWeb();
-    }
+    final db = await database;
+    return await _store.delete(db);
   }
-  
-  int _deleteAllTasksWeb() {
-    _initWebFallback();
-    final tasks = List<Map<String, dynamic>>.from(_webStorage['tasks']);
-    final count = tasks.length;
-    _webStorage['tasks'] = <Map<String, dynamic>>[];
-    print('Todas as tarefas removidas do fallback');
-    return count;
-  }
-  
+
+
+Future<void> insertSeries(TaskSeries series) async {
+  final db = await database;
+  await _seriesStore.record(series.id).put(db, series.toMap());
+}
+
+
+Future<void> updateSeries(TaskSeries series) async {
+  final db = await database;
+  await _seriesStore.record(series.id).update(db, series.toMap());
+}
+
+
+Future<void> deleteSeries(String id) async {
+  final db = await database;
+  await _seriesStore.record(id).delete(db);
+}
+
+
+Future<List<TaskSeries>> getAllSeries() async {
+  final db = await database;
+  final snapshot = await _seriesStore.find(db, finder: Finder(sortOrders: [SortOrder('name')]));
+  return snapshot.map((record) => TaskSeries.fromMap(record.value)).toList();
+}
+
+
+Future<int> deleteTasksBySeriesId(String seriesId) async {
+  final db = await database;
+  final finder = Finder(filter: Filter.equals('seriesId', seriesId));
+  return await _store.delete(db, finder: finder);
+}
+
+
+Future<List<Task>> getTasksBySeriesId(String seriesId) async {
+  final db = await database;
+  final finder = Finder(filter: Filter.equals('seriesId', seriesId));
+  final records = await _store.find(db, finder: finder);
+  return records.map((record) => Task.fromMap(record.value)).toList();
+}
+
+
   Future<bool> isDatabaseReady() async {
     try {
-      if (_isWebFallback) {
-        return true; // Fallback sempre está "pronto"
-      }
-      
       final db = await database;
-      await db.rawQuery('SELECT 1');
+      await _store.count(db);
       return true;
     } catch (e) {
-      print('Database não está pronto, ativando fallback: $e');
-      _isWebFallback = true;
-      _initWebFallback();
-      return true; // Fallback ativo
+      return false;
     }
   }
-  
-  // Método para verificar se está usando fallback
-  bool get isUsingFallback => _isWebFallback;
-  
-  // Método para forçar fallback (útil para testes)
-  void forceFallback() {
-    _isWebFallback = true;
-    _initWebFallback();
-  }
-  
-  // Método para tentar reconectar ao SQLite
-  Future<bool> tryReconnectSQLite() async {
-    if (!kIsWeb) return false;
-    
-    try {
-      _isWebFallback = false;
+
+
+  Future close() async {
+    final db = _database;
+    if (db != null) {
+      await db.close();
       _database = null;
-      
-      final db = await database;
-      await db.rawQuery('SELECT 1');
-      
-      // Se chegou até aqui, SQLite está funcionando
-      print('Reconexão com SQLite bem-sucedida');
-      return true;
-    } catch (e) {
-      print('Falha na reconexão com SQLite: $e');
-      _isWebFallback = true;
-      _initWebFallback();
-      return false;
-    }
-  }
-  
-  // Método para exportar dados do fallback (útil para debug)
-  Map<String, dynamic> exportFallbackData() {
-    return Map<String, dynamic>.from(_webStorage);
-  }
-  
-  // Método para importar dados para o fallback
-  void importFallbackData(Map<String, dynamic> data) {
-    _webStorage = data;
-  }
-  
-  // Método para migrar dados do fallback para SQLite
-  Future<bool> migrateFallbackToSQLite() async {
-    if (!_isWebFallback || !kIsWeb) return false;
-    
-    try {
-      // Salva os dados do fallback
-      final fallbackTasks = _getTasksWeb();
-      
-      // Tenta reconectar ao SQLite
-      final connected = await tryReconnectSQLite();
-      if (!connected) return false;
-      
-      // Migra os dados
-      final db = await database;
-      for (final task in fallbackTasks) {
-        await db.insert('tasks', task.toMap());
-      }
-      
-      print('${fallbackTasks.length} tarefas migradas do fallback para SQLite');
-      return true;
-    } catch (e) {
-      print('Erro na migração: $e');
-      _isWebFallback = true;
-      return false;
     }
   }
 }

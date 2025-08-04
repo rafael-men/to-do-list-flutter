@@ -3,24 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:main/pages/home_page.dart';
 import 'package:main/services/service_locator.dart';
 
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
-
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  setupGetIt();
 
-
-  if (kIsWeb) {
-
-    databaseFactory = databaseFactoryFfiWeb;
-  } else {
-
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  }
-  // -----------------------------------------------------------
-
-  setupGetIt(); 
   runApp(const MyApp());
 }
 
@@ -33,7 +19,9 @@ class MyApp extends StatelessWidget {
       title: 'Lista de Tarefas',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 33, 46, 52)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 33, 46, 52),
+        ),
         scaffoldBackgroundColor: const Color.fromARGB(255, 89, 32, 32),
       ),
       home: const HomePage(),

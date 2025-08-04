@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:main/models/task.dart';
 import 'package:main/services/service_locator.dart';
 import 'package:main/utils/task_list_controller.dart';
+import 'package:main/utils/task_series_controller.dart';
 import 'package:main/widget/page_widget.dart';
 
 class HomePage extends StatefulWidget {
@@ -15,6 +16,10 @@ class _MyHomePageState extends State<HomePage> {
   final _titleController = TextEditingController();
   final _detailsController = TextEditingController();
   final _taskController = getIt<TaskListController>();
+  final _seriesNameController = TextEditingController();
+  final _seriesTasksController = TextEditingController();
+  final _seriesController = getIt<TaskSeriesController>();
+
 
   @override
   void initState() {
@@ -27,6 +32,71 @@ class _MyHomePageState extends State<HomePage> {
     await _taskController.loadTasks();
  
   }
+
+  void _showCreateSeriesDialog() {
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Criar Série de Tarefas'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _seriesNameController,
+              decoration: const InputDecoration(labelText: 'Nome da Série'),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _seriesTasksController,
+              decoration: const InputDecoration(
+                labelText: 'Tarefas (uma por linha)',
+                alignLabelWithHint: true,
+              ),
+              maxLines: 6,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = _seriesNameController.text.trim();
+              final tarefas = _seriesTasksController.text
+                  .split('\n')
+                  .map((e) => e.trim())
+                  .where((e) => e.isNotEmpty)
+                  .toList();
+
+              if (name.isEmpty || tarefas.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Preencha o nome e pelo menos uma tarefa')),
+                );
+                return;
+              }
+
+              final tasks = tarefas
+                  .map((desc) => Task.create(desc, "", seriesId: null))
+                  .toList();
+
+              await _seriesController.createSeries(name, tasks);
+              await _taskController.loadTasks();
+
+              _seriesNameController.clear();
+              _seriesTasksController.clear();
+              Navigator.pop(context);
+            },
+            child: const Text('Criar Série'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   void _showAddTaskDialog() {
     showDialog(
@@ -101,25 +171,6 @@ class _MyHomePageState extends State<HomePage> {
         title: const Text('Lista de Tarefas'),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.bug_report),
-            tooltip: 'Teste Debug',
-            onPressed: () {
-              final testTask = Task.create(
-                "Teste Debug ${DateTime.now().millisecond}",
-                "Tarefa criada pelo botão de debug",
-              );
-
-              _taskController.addTask(testTask);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Tarefa de teste adicionada!'),
-                  backgroundColor: Colors.green[400],
-                ),
-              );
-            },
-          ),
         ],
       ),
       body: ListView(
@@ -127,11 +178,28 @@ class _MyHomePageState extends State<HomePage> {
           PageWidget(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddTaskDialog,
-        tooltip: 'Adicionar Tarefa',
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: Column(
+  mainAxisSize: MainAxisSize.min,
+  crossAxisAlignment: CrossAxisAlignment.end,
+  children: [
+    FloatingActionButton(
+      heroTag: 'fab_series',
+      onPressed: _showCreateSeriesDialog,
+      tooltip: 'Criar Série de Tarefas',
+      mini: true,
+      child: const Icon(Icons.playlist_add),
+    ),
+    const SizedBox(height: 12),
+    FloatingActionButton(
+      heroTag: 'fab_task',
+      onPressed: _showAddTaskDialog,
+      tooltip: 'Adicionar Tarefa',
+      child: const Icon(Icons.add),
+    ),
+  ],
+),
+
+      
     );
   }
 
